@@ -4,23 +4,25 @@ Quick and simple script to receive a CW tone from a bladeRF 2.0 micro xA4
 unit.
 """
 
-import datetime
-import logging
+from __future__ import annotations
 
-import helpers
+import sys
+
+import loguru
 import numpy as np
 from bladerf import _bladerf
+from loguru import logger
 
 NTP_SERVER = "0.uk.pool.ntp.org"
 
 
-def bladerf_cw_tone_rx(params: dict, logger: logging.Logger) -> None:
+def bladerf_cw_tone_rx(params: dict, logger: loguru.Logger) -> None:
     """Sets up a BladeRF 2.0 micro xA4 as a CW receiver"""
 
     try:
         sdr = _bladerf.BladeRF()
     except Exception as error:
-        logger.critical(f"Could not connect to bladeRF unit")
+        logger.critical("Could not connect to bladeRF unit")
         logger.critical(f"Error message returned: {error.args[0]}")
         raise RuntimeError("Could not connect to bladeRF unit") from error
 
@@ -65,13 +67,13 @@ def bladerf_cw_tone_rx(params: dict, logger: logging.Logger) -> None:
     buffer = bytearray(params["buffer_size"] * bytes_per_sample)
 
     num_samples = int(params["sample_rate"] * params["time_duration"])
-    logging.info(f"Calculated number of samples: {num_samples:.2e}")
+    logger.info(f"Calculated number of samples: {num_samples:.2e}")
 
     rx_ch.enable = True
     logger.info(f"Rx gain set to {rx_ch.gain} dB")
     logger.info("Rx channel configured and enabled")
 
-    # ! Each sample consists of I and Q values
+    # WARN Each sample consists of I and Q values
     rx_signal = np.zeros(num_samples * 2, dtype=np.int16)
 
     num_samples_rcvd = 0
@@ -79,7 +81,7 @@ def bladerf_cw_tone_rx(params: dict, logger: logging.Logger) -> None:
     with open("test.iqbin", "wb") as out_file:
         while True:
             if num_samples > 0 and num_samples_rcvd == num_samples:
-                logging.info("All samples received")
+                logger.info("All samples received")
                 break
             elif num_samples > 0:
                 num = min(
@@ -97,19 +99,39 @@ def bladerf_cw_tone_rx(params: dict, logger: logging.Logger) -> None:
             #        samples /= 2048.0 # Scale to -1 to 1 (its using 12 bit ADC)
             out_file.write(samples.tobytes())
 
-            #            rx_signal[num_samples_rcvd:num_samples_rcvd+2*num] = samples # Store buf in samples array
+            #        rx_signal[num_samples_rcvd:num_samples_rcvd+2*num] = samples # Store buf in samples array
 
             num_samples_rcvd += num
-            logging.info(f"Received {num_samples_rcvd} out of {num_samples}")
+            logger.info(f"Received {num_samples_rcvd} out of {num_samples}")
 
     rx_ch.enable = False
     logger.info("Rx channel disabled")
 
 
 if __name__ == "__main__":
-    # args = cli_args()
+    logger.remove()
+    logger_stderr = logger.add(
+        sys.stderr,
+        format=(
+            "[<red>{time}</red>]\t"
+            "<yellow>{level}</yellow>\t"
+            "<cyan>{message}</cyan>\t"
+            "<white>{extra}</white>"
+        ),
+    )
+    logger_filename = "SAC-SimpleRx.log"
+    logger_file = logger.add(
+        logger_filename,
+        format=(
+            "[<red>{time}</red>]\t"
+            "<yellow>{level}</yellow>\t"
+            "<cyan>{message}</cyan>\t"
+            "<white>{extra}</white>"
+        ),
+        rotation="100 KB",
+    )
 
-    global_timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    logger.info("")
 
     params = {
         "rx_ch": 0,
@@ -121,14 +143,9 @@ if __name__ == "__main__":
         "buffer_size": 2000,
     }
 
-    bladerf_rx_logger = helpers.setup_logger("SAC-SimpleRx", global_timestamp)
-    helpers.log_ntp_time(bladerf_rx_logger, NTP_SERVER)
-
     try:
-        bladerf_cw_tone_rx(params, bladerf_rx_logger)
+        bladerf_cw_tone_rx(params, logger)
     except RuntimeError:
-        bladerf_rx_logger.info(
+        logger.error(
             "Please check the BladeRF is connected to this PC and running"
         )
-
-    logging.shutdown()

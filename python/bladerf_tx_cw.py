@@ -4,25 +4,25 @@ Quick and simple script to generate a CW tone from a bladeRF 2.0 micro xA4
 unit.
 """
 
-import datetime
-import logging
+from __future__ import annotations
 
-import matplotlib.pyplot as plt
+import sys
+
+import loguru
 import numpy as np
 from bladerf import _bladerf
-
-import helpers
+from loguru import logger
 
 NTP_SERVER = "0.uk.pool.ntp.org"
 
 
-def bladerf_cw_tone_tx(params: dict, logger: logging.Logger) -> None:
+def bladerf_cw_tone_tx(params: dict, logger: loguru.Logger) -> None:
     """Sets up a BladeRF 2.0 micro xA4 as a CW transmitter"""
 
     try:
         sdr = _bladerf.BladeRF()
     except Exception as error:
-        logger.critical(f"Could not connect to bladeRF unit")
+        logger.critical("Could not connect to bladeRF unit")
         logger.critical(f"Error message returned: {error.args[0]}")
         raise RuntimeError("Could not connect to bladeRF unit") from error
 
@@ -87,7 +87,7 @@ def bladerf_cw_tone_tx(params: dict, logger: logging.Logger) -> None:
         try:
             sdr.sync_tx(buffer, params["num_samples"])
             transmit_counter += 1
-            # logger.info(f"Transmitted {transmit_counter} buffers")
+            logger.info(f"Transmitted {transmit_counter} buffers")
 
         except KeyboardInterrupt:
             logger.info("User interrupt, stopping transmitting")
@@ -98,9 +98,29 @@ def bladerf_cw_tone_tx(params: dict, logger: logging.Logger) -> None:
 
 
 if __name__ == "__main__":
-    # args = cli_args()
+    logger.remove()
+    logger_stderr = logger.add(
+        sys.stderr,
+        format=(
+            "[<red>{time}</red>]\t"
+            "<yellow>{level}</yellow>\t"
+            "<cyan>{message}</cyan>\t"
+            "<white>{extra}</white>"
+        ),
+    )
+    logger_filename = "SAC-SimpleTx.log"
+    logger_file = logger.add(
+        logger_filename,
+        format=(
+            "[<red>{time}</red>]\t"
+            "<yellow>{level}</yellow>\t"
+            "<cyan>{message}</cyan>\t"
+            "<white>{extra}</white>"
+        ),
+        rotation="100 KB",
+    )
 
-    global_timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    logger.info("")
 
     params = {
         "num_samples": int(1e6),
@@ -112,14 +132,9 @@ if __name__ == "__main__":
         "tx_gain": 30,
     }
 
-    bladerf_tx_logger = helpers.setup_logger("SAC-SimpleTx", global_timestamp)
-    helpers.log_ntp_time(bladerf_tx_logger, NTP_SERVER)
-
     try:
-        bladerf_cw_tone_tx(params, bladerf_tx_logger)
+        bladerf_cw_tone_tx(params, logger)
     except RuntimeError:
-        bladerf_tx_logger.info(
+        logger.info(
             "Please check the BladeRF is connected to this PC and running"
         )
-
-    logging.shutdown()
