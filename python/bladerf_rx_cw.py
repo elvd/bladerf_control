@@ -10,10 +10,11 @@ import sys
 
 import loguru
 import numpy as np
+import sigmf
 from bladerf import _bladerf
 from loguru import logger
-
-NTP_SERVER = "0.uk.pool.ntp.org"
+from sigmf import SigMFFile
+from sigmf.utils import get_data_type_str, get_sigmf_iso8601_datetime_now
 
 
 def bladerf_cw_tone_rx(params: dict, logger: loguru.Logger) -> None:
@@ -26,7 +27,14 @@ def bladerf_cw_tone_rx(params: dict, logger: loguru.Logger) -> None:
         logger.critical(f"Error message returned: {error.args[0]}")
         raise RuntimeError("Could not connect to bladeRF unit") from error
 
-    logger.info(f"Device info: {_bladerf.get_device_list()[0]}")
+    device_info = _bladerf.get_device_list()[0]
+    logger.info("Device info")
+    logger.info(f"Device string: {device_info.devstr}")
+    logger.info(f"Serial: {device_info.serial_str}")
+    logger.info(f"Backend: {device_info.backend}")
+    logger.info(f"USB bus: {device_info.usb_bus}")
+    logger.info(f"USB address: {device_info.usb_addr}")
+    logger.info(f"Instance: {device_info.instance}")
     logger.info(f"libbladeRF version: {_bladerf.version()}")
     logger.info(f"Firmware version: {sdr.get_fw_version()}")
     logger.info(f"FPGA version: {sdr.get_fpga_version()}")
@@ -74,8 +82,6 @@ def bladerf_cw_tone_rx(params: dict, logger: loguru.Logger) -> None:
     logger.info("Rx channel configured and enabled")
 
     # WARN Each sample consists of I and Q values
-    rx_signal = np.zeros(num_samples * 2, dtype=np.int16)
-
     num_samples_rcvd = 0
 
     with open("test.iqbin", "wb") as out_file:
@@ -94,14 +100,10 @@ def bladerf_cw_tone_rx(params: dict, logger: loguru.Logger) -> None:
             sdr.sync_rx(buffer, num)
 
             samples = np.frombuffer(buffer, dtype=np.int16)
-
-            #        samples = samples[0::2] + 1j * samples[1::2] # Convert to complex type
-            #        samples /= 2048.0 # Scale to -1 to 1 (its using 12 bit ADC)
             out_file.write(samples.tobytes())
 
-            #        rx_signal[num_samples_rcvd:num_samples_rcvd+2*num] = samples # Store buf in samples array
-
             num_samples_rcvd += num
+
             logger.info(f"Received {num_samples_rcvd} out of {num_samples}")
 
     rx_ch.enable = False
@@ -113,7 +115,7 @@ if __name__ == "__main__":
     logger_stderr = logger.add(
         sys.stderr,
         format=(
-            "[<red>{time}</red>]\t"
+            "[<red>{time:YYYY-MM-DDTHH:mm:ss.SSSSSS!UTC}</red>]\t"
             "<yellow>{level}</yellow>\t"
             "<cyan>{message}</cyan>\t"
             "<white>{extra}</white>"
@@ -131,7 +133,7 @@ if __name__ == "__main__":
         rotation="100 KB",
     )
 
-    logger.info("")
+    logger.info("Begin device set up")
 
     params = {
         "rx_ch": 0,
@@ -149,3 +151,5 @@ if __name__ == "__main__":
         logger.error(
             "Please check the BladeRF is connected to this PC and running"
         )
+
+    logger.info("End of experiment")

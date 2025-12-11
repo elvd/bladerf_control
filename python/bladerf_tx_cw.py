@@ -26,7 +26,14 @@ def bladerf_cw_tone_tx(params: dict, logger: loguru.Logger) -> None:
         logger.critical(f"Error message returned: {error.args[0]}")
         raise RuntimeError("Could not connect to bladeRF unit") from error
 
-    logger.info(f"Device info: {_bladerf.get_device_list()[0]}")
+    device_info = _bladerf.get_device_list()[0]
+    logger.info("Device info")
+    logger.info(f"Device string: {device_info.devstr}")
+    logger.info(f"Serial: {device_info.serial_str}")
+    logger.info(f"Backend: {device_info.backend}")
+    logger.info(f"USB bus: {device_info.usb_bus}")
+    logger.info(f"USB address: {device_info.usb_addr}")
+    logger.info(f"Instance: {device_info.instance}")
     logger.info(f"libbladeRF version: {_bladerf.version()}")
     logger.info(f"Firmware version: {sdr.get_fw_version()}")
     logger.info(f"FPGA version: {sdr.get_fpga_version()}")
@@ -102,7 +109,7 @@ if __name__ == "__main__":
     logger_stderr = logger.add(
         sys.stderr,
         format=(
-            "[<red>{time}</red>]\t"
+            "[<red>{time:YYYY-MM-DDTHH:mm:ss.SSSSSS!UTC}</red>]\t"
             "<yellow>{level}</yellow>\t"
             "<cyan>{message}</cyan>\t"
             "<white>{extra}</white>"
@@ -120,7 +127,7 @@ if __name__ == "__main__":
         rotation="100 KB",
     )
 
-    logger.info("")
+    logger.info("Begin device set up")
 
     params = {
         "num_samples": int(1e6),
@@ -138,3 +145,5 @@ if __name__ == "__main__":
         logger.info(
             "Please check the BladeRF is connected to this PC and running"
         )
+
+    logger.info("End of experiment")
