@@ -1,0 +1,9 @@
+[project]
+name = "bladerf-control"
+version = "0.1.0"
+description = "Nuand bladeRF SDR Control"
+authors = [
+    { name = "Viktor Doychinov", email = "v.doychinov@bradford.ac.uk" }
+]
+requires-python = ">=3.12"
+dependencies = []

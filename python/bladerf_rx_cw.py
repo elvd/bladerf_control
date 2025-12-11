@@ -7,10 +7,9 @@ unit.
 import datetime
 import logging
 
+import helpers
 import numpy as np
 from bladerf import _bladerf
-
-import helpers
 
 NTP_SERVER = "0.uk.pool.ntp.org"
 
