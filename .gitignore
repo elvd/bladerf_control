@@ -13,4 +13,8 @@ uv.lock
 .ropeproject/
 .zed
 
+# Tool-generated files
 **/*.log
+
+# GNU Radio files - for now
+**/*.grc
