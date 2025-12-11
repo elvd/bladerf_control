@@ -1,0 +1,16 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Tool-generated files
+uv.lock
+.ruff_cache/
+.python-version
+.ropeproject/
+.zed
+
+**/*.log
