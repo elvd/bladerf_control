@@ -12,12 +12,13 @@ import loguru
 import numpy as np
 import sigmf
 from bladerf import _bladerf
+from bladerf_data_structures import RxConfig
 from loguru import logger
 from sigmf import SigMFFile
 from sigmf.utils import get_data_type_str, get_sigmf_iso8601_datetime_now
 
 
-def bladerf_cw_tone_rx(params: dict, logger: loguru.Logger) -> None:
+def bladerf_cw_tone_rx(params: RxConfig, logger: loguru.Logger) -> None:
     """Sets up a BladeRF 2.0 micro xA4 as a CW receiver"""
 
     try:
@@ -40,7 +41,7 @@ def bladerf_cw_tone_rx(params: dict, logger: loguru.Logger) -> None:
     logger.info(f"FPGA version: {sdr.get_fpga_version()}")
 
     try:
-        channel = _bladerf.CHANNEL_RX(params["rx_ch"])
+        channel = _bladerf.CHANNEL_RX(params.channel)
         rx_ch = sdr.Channel(channel)
     except Exception as error:
         logger.critical(f"Invalid Rx channel value: {channel}")
@@ -48,19 +49,19 @@ def bladerf_cw_tone_rx(params: dict, logger: loguru.Logger) -> None:
 
     logger.info(f"Using Rx channel: {channel}")
 
-    rx_ch.frequency = params["freq_centre"]
+    rx_ch.frequency = params.centre_frequency
     logger.info(f"Rx LO set to {rx_ch.frequency:.3e} Hz")
 
-    rx_ch.sample_rate = params["sample_rate"]
+    rx_ch.sample_rate = params.sample_rate
     logger.info(f"Rx sample rate set to {rx_ch.sample_rate:.3e} samples/sec")
 
-    rx_ch.bandwidth = params["bandwidth"]
+    rx_ch.bandwidth = params.bandwidth
     logger.info(f"Rx BW set to {rx_ch.bandwidth:.3e} Hz")
 
     rx_ch.gain_mode = _bladerf.GainMode.Manual
     logger.info("Set gain mode to manual - AGC disabled")
 
-    rx_ch.gain = params["rx_gain"]
+    rx_ch.gain = params.gain
 
     sdr.sync_config(
         layout=_bladerf.ChannelLayout(channel),
@@ -72,9 +73,9 @@ def bladerf_cw_tone_rx(params: dict, logger: loguru.Logger) -> None:
     )
 
     bytes_per_sample = 4
-    buffer = bytearray(params["buffer_size"] * bytes_per_sample)
+    buffer = bytearray(params.buffer_size * bytes_per_sample)
 
-    num_samples = int(params["sample_rate"] * params["time_duration"])
+    num_samples = int(params.sample_rate * params.time_duration)
     logger.info(f"Calculated number of samples: {num_samples:.2e}")
 
     rx_ch.enable = True
@@ -135,15 +136,9 @@ if __name__ == "__main__":
 
     logger.info("Begin device set up")
 
-    params = {
-        "rx_ch": 0,
-        "sample_rate": 20e6,
-        "freq_centre": 1e9,
-        "bandwidth": 10e6,
-        "rx_gain": 0,
-        "time_duration": 0.01,
-        "buffer_size": 2000,
-    }
+    params = RxConfig(
+        channel=0, sample_rate=int(20e6), centre_frequency=int(2e9)
+    )
 
     try:
         bladerf_cw_tone_rx(params, logger)

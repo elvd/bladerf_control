@@ -11,12 +11,11 @@ import sys
 import loguru
 import numpy as np
 from bladerf import _bladerf
+from bladerf_data_structures import TxConfig
 from loguru import logger
 
-NTP_SERVER = "0.uk.pool.ntp.org"
 
-
-def bladerf_cw_tone_tx(params: dict, logger: loguru.Logger) -> None:
+def bladerf_cw_tone_tx(params: TxConfig, logger: loguru.Logger) -> None:
     """Sets up a BladeRF 2.0 micro xA4 as a CW transmitter"""
 
     try:
@@ -39,7 +38,7 @@ def bladerf_cw_tone_tx(params: dict, logger: loguru.Logger) -> None:
     logger.info(f"FPGA version: {sdr.get_fpga_version()}")
 
     try:
-        channel = _bladerf.CHANNEL_TX(params["tx_ch"])
+        channel = _bladerf.CHANNEL_TX(params.channel)
         tx_ch = sdr.Channel(channel)
     except Exception as error:
         logger.critical(f"Invalid Tx channel value: {channel}")
@@ -47,16 +46,16 @@ def bladerf_cw_tone_tx(params: dict, logger: loguru.Logger) -> None:
 
     logger.info(f"Using Tx channel: {channel}")
 
-    tx_ch.frequency = params["freq_centre"]
+    tx_ch.frequency = params.centre_frequency
     logger.info(f"Tx LO set to {tx_ch.frequency:.3e} Hz")
 
-    tx_ch.sample_rate = params["sample_rate"]
+    tx_ch.sample_rate = params.sample_rate
     logger.info(f"Tx sample rate set to {tx_ch.sample_rate:.3e} samples/sec")
 
-    tx_ch.bandwidth = params["bandwidth"]
+    tx_ch.bandwidth = params.bandwidth
     logger.info(f"Tx BW set to {tx_ch.bandwidth:.3e} Hz")
 
-    tx_ch.gain = params["tx_gain"]
+    tx_ch.gain = params.gain
     logger.info(f"Tx gain set to {tx_ch.gain} dB")
 
     sdr.sync_config(
@@ -68,10 +67,10 @@ def bladerf_cw_tone_tx(params: dict, logger: loguru.Logger) -> None:
         stream_timeout=3500,
     )
 
-    time_duration = np.arange(params["num_samples"]) / params["sample_rate"]
+    time_duration = np.arange(params.number_samples) / params.sample_rate
     logger.info(f"Calculated signal duration: {np.max(time_duration):.2e} sec")
 
-    samples = np.exp(1j * 2 * np.pi * time_duration * params["freq_tone"])
+    samples = np.exp(1j * 2 * np.pi * time_duration * params.cw_tone_frequency)
 
     # samples = samples.astype(np.complex64)  # TODO: check this
     samples *= 2047
@@ -92,7 +91,7 @@ def bladerf_cw_tone_tx(params: dict, logger: loguru.Logger) -> None:
 
     while True:
         try:
-            sdr.sync_tx(buffer, params["num_samples"])
+            sdr.sync_tx(buffer, params.number_samples)
             transmit_counter += 1
             logger.info(f"Transmitted {transmit_counter} buffers")
 
@@ -129,15 +128,7 @@ if __name__ == "__main__":
 
     logger.info("Begin device set up")
 
-    params = {
-        "num_samples": int(1e6),
-        "tx_ch": 0,
-        "sample_rate": 5e6,
-        "freq_tone": 1e6,
-        "freq_centre": 1e9,
-        "bandwidth": 20e6,
-        "tx_gain": 30,
-    }
+    params = TxConfig(centre_frequency=int(2e9), gain=20)
 
     try:
         bladerf_cw_tone_tx(params, logger)
