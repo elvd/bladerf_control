@@ -63,7 +63,7 @@ def bladerf_cw_tone_tx(params: TxConfig, logger: loguru.Logger) -> None:
         layout=_bladerf.ChannelLayout(_bladerf.CHANNEL_TX(params.channel)),
         fmt=_bladerf.Format.SC16_Q11,
         num_buffers=params.sync_config.number_of_buffers,
-        buffer_size=params.sync_config.buffer_size,
+        buffer_size=params.sync_config.buffer_size_samples,
         num_transfers=params.sync_config.number_of_transfers,
         stream_timeout=params.sync_config.stream_timeout,
     )

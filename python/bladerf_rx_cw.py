@@ -18,7 +18,10 @@ from sigmf import SigMFFile
 from sigmf.utils import get_data_type_str, get_sigmf_iso8601_datetime_now
 
 
-def bladerf_cw_tone_rx(params: RxConfig, logger: loguru.Logger) -> None:
+#   _Array[tuple[int], signedinteger[_16Bit]]
+def bladerf_cw_tone_rx(
+    params: RxConfig, logger: loguru.Logger
+) -> tuple[np._ArrayInt_co, str]:
     """Sets up a BladeRF 2.0 micro xA4 as a CW receiver"""
 
     try:
@@ -68,48 +71,58 @@ def bladerf_cw_tone_rx(params: RxConfig, logger: loguru.Logger) -> None:
         layout=_bladerf.ChannelLayout(_bladerf.CHANNEL_RX(params.channel)),
         fmt=_bladerf.Format.SC16_Q11,
         num_buffers=params.sync_config.number_of_buffers,
-        buffer_size=params.sync_config.buffer_size,
+        buffer_size=params.sync_config.buffer_size_samples,
         num_transfers=params.sync_config.number_of_transfers,
         stream_timeout=params.sync_config.stream_timeout,
     )
 
+    # TODO Get rid of this magic number
     bytes_per_sample = 4
-    buffer = bytearray(params.buffer_size * bytes_per_sample)
+    buffer = bytearray(
+        int(params.buffer_size_time * params.sample_rate * bytes_per_sample)
+    )
 
     num_samples = int(params.sample_rate * params.time_duration)
     logger.info(f"Calculated number of samples: {num_samples:.2e}")
+
+    rx_signal = np.zeros(num_samples * 2, dtype=np.int16)
 
     rx_ch.enable = True
     logger.info(f"Rx gain set to {rx_ch.gain} dB")
     logger.info("Rx channel configured and enabled")
 
     # WARN Each sample consists of I and Q values
-    num_samples_rcvd = 0
+    num_samples_received = 0
 
-    with open("test.iqbin", "wb") as out_file:
-        while True:
-            if num_samples > 0 and num_samples_rcvd == num_samples:
-                logger.info("All samples received")
-                break
-            elif num_samples > 0:
-                num = min(
-                    len(buffer) // bytes_per_sample,
-                    num_samples - num_samples_rcvd,
-                )
-            else:
-                num = len(buffer) // bytes_per_sample
+    while True:
+        if num_samples > 0 and num_samples_received == num_samples:
+            break
+        elif num_samples > 0:
+            num = min(
+                len(buffer) // bytes_per_sample,
+                num_samples - num_samples_received,
+            )
+        else:
+            num = len(buffer) // bytes_per_sample
 
-            sdr.sync_rx(buffer, num)
+        sdr.sync_rx(buffer, num)
 
-            samples = np.frombuffer(buffer, dtype=np.int16)
-            out_file.write(samples.tobytes())
+        samples = np.frombuffer(buffer, dtype=np.int16)
 
-            num_samples_rcvd += num
+        rx_signal[
+            num_samples_received * 2 : num_samples_received * 2 + len(samples)
+        ] = samples
 
-            logger.info(f"Received {num_samples_rcvd} out of {num_samples}")
+        num_samples_received += num
+
+        logger.info(
+            f"Received {num_samples_received:.3E} out of {num_samples:.3E}"
+        )
 
     rx_ch.enable = False
     logger.info("Rx channel disabled")
+
+    return (rx_signal, device_info.serial_str)
 
 
 if __name__ == "__main__":
@@ -142,10 +155,37 @@ if __name__ == "__main__":
     )
 
     try:
-        bladerf_cw_tone_rx(params, logger)
+        receive_time_begin = get_sigmf_iso8601_datetime_now()
+        (received_samples, device_serial) = bladerf_cw_tone_rx(params, logger)
     except RuntimeError:
         logger.error(
             "Please check the BladeRF is connected to this PC and running"
         )
+    else:
+        logger.info("Samples received successfully")
+
+        received_samples.tofile(
+            f"SAC-SimpleRx-{receive_time_begin}-{device_serial[-4:]}.sigmf-data"
+        )
+
+        metadata = SigMFFile(
+            data_file=f"SAC-SimpleRx-{receive_time_begin}-{device_serial[-4:]}.sigmf-data",
+            global_info={
+                SigMFFile.DATATYPE_KEY: get_data_type_str(received_samples),
+                SigMFFile.SAMPLE_RATE_KEY: params.sample_rate,
+                SigMFFile.AUTHOR_KEY: "v.doychinov@bradford.ac.uk",
+                SigMFFile.DESCRIPTION_KEY: "RF Signal Recording",
+                SigMFFile.FREQUENCY_KEY: params.centre_frequency,
+                SigMFFile.DATETIME_KEY: receive_time_begin,
+                SigMFFile.HW_KEY: device_serial,
+                SigMFFile.VERSION_KEY: sigmf.__version__,
+            },
+        )
+
+        metadata.tofile(
+            f"SAC-SimpleRx-{receive_time_begin}-{device_serial[-4:]}.sigmf-meta"
+        )
+
+        logger.info("Samples saved successfully")
 
     logger.info("End of experiment")

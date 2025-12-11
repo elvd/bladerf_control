@@ -6,7 +6,7 @@ from dataclasses import dataclass
 @dataclass
 class ChannelConfig:
     number_of_buffers: int = 512
-    buffer_size: int = 4096
+    buffer_size_samples: int = 4096
     number_of_transfers: int = 32
     stream_timeout: int = 3500
 
@@ -23,8 +23,8 @@ class BaseConfig:
 
 @dataclass
 class RxConfig(BaseConfig):
-    time_duration: float = 0.01
-    buffer_size: int = 2000
+    time_duration: float = 1
+    buffer_size_time: float = 0.01
 
 
 @dataclass
