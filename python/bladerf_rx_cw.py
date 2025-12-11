@@ -12,7 +12,7 @@ import loguru
 import numpy as np
 import sigmf
 from bladerf import _bladerf
-from bladerf_data_structures import RxConfig
+from bladerf_data_structures import ChannelConfig, RxConfig
 from loguru import logger
 from sigmf import SigMFFile
 from sigmf.utils import get_data_type_str, get_sigmf_iso8601_datetime_now
@@ -41,13 +41,14 @@ def bladerf_cw_tone_rx(params: RxConfig, logger: loguru.Logger) -> None:
     logger.info(f"FPGA version: {sdr.get_fpga_version()}")
 
     try:
-        channel = _bladerf.CHANNEL_RX(params.channel)
-        rx_ch = sdr.Channel(channel)
+        rx_ch = sdr.Channel(_bladerf.CHANNEL_RX(params.channel))
     except Exception as error:
-        logger.critical(f"Invalid Rx channel value: {channel}")
+        logger.critical(
+            f"Invalid Rx channel value: {_bladerf.CHANNEL_RX(params.channel)}"
+        )
         raise RuntimeError("Error configuring bladeRF unit") from error
 
-    logger.info(f"Using Rx channel: {channel}")
+    logger.info(f"Using Rx channel: {_bladerf.CHANNEL_RX(params.channel)}")
 
     rx_ch.frequency = params.centre_frequency
     logger.info(f"Rx LO set to {rx_ch.frequency:.3e} Hz")
@@ -64,12 +65,12 @@ def bladerf_cw_tone_rx(params: RxConfig, logger: loguru.Logger) -> None:
     rx_ch.gain = params.gain
 
     sdr.sync_config(
-        layout=_bladerf.ChannelLayout(channel),
+        layout=_bladerf.ChannelLayout(_bladerf.CHANNEL_RX(params.channel)),
         fmt=_bladerf.Format.SC16_Q11,
-        num_buffers=32,
-        buffer_size=4096,
-        num_transfers=16,
-        stream_timeout=3500,
+        num_buffers=params.sync_config.number_of_buffers,
+        buffer_size=params.sync_config.buffer_size,
+        num_transfers=params.sync_config.number_of_transfers,
+        stream_timeout=params.sync_config.stream_timeout,
     )
 
     bytes_per_sample = 4
@@ -137,7 +138,7 @@ if __name__ == "__main__":
     logger.info("Begin device set up")
 
     params = RxConfig(
-        channel=0, sample_rate=int(20e6), centre_frequency=int(2e9)
+        ChannelConfig(), sample_rate=int(20e6), centre_frequency=int(2e9)
     )
 
     try:

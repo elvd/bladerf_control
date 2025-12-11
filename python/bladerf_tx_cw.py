@@ -11,7 +11,7 @@ import sys
 import loguru
 import numpy as np
 from bladerf import _bladerf
-from bladerf_data_structures import TxConfig
+from bladerf_data_structures import ChannelConfig, TxConfig
 from loguru import logger
 
 
@@ -38,13 +38,14 @@ def bladerf_cw_tone_tx(params: TxConfig, logger: loguru.Logger) -> None:
     logger.info(f"FPGA version: {sdr.get_fpga_version()}")
 
     try:
-        channel = _bladerf.CHANNEL_TX(params.channel)
-        tx_ch = sdr.Channel(channel)
+        tx_ch = sdr.Channel(_bladerf.CHANNEL_TX(params.channel))
     except Exception as error:
-        logger.critical(f"Invalid Tx channel value: {channel}")
+        logger.critical(
+            f"Invalid Tx channel value: {_bladerf.CHANNEL_TX(params.channel)}"
+        )
         raise RuntimeError("Error configuring bladeRF unit") from error
 
-    logger.info(f"Using Tx channel: {channel}")
+    logger.info(f"Using Tx channel: {_bladerf.CHANNEL_TX(params.channel)}")
 
     tx_ch.frequency = params.centre_frequency
     logger.info(f"Tx LO set to {tx_ch.frequency:.3e} Hz")
@@ -59,12 +60,12 @@ def bladerf_cw_tone_tx(params: TxConfig, logger: loguru.Logger) -> None:
     logger.info(f"Tx gain set to {tx_ch.gain} dB")
 
     sdr.sync_config(
-        layout=_bladerf.ChannelLayout(channel),
+        layout=_bladerf.ChannelLayout(_bladerf.CHANNEL_TX(params.channel)),
         fmt=_bladerf.Format.SC16_Q11,
-        num_buffers=512,
-        buffer_size=4096,
-        num_transfers=32,
-        stream_timeout=3500,
+        num_buffers=params.sync_config.number_of_buffers,
+        buffer_size=params.sync_config.buffer_size,
+        num_transfers=params.sync_config.number_of_transfers,
+        stream_timeout=params.sync_config.stream_timeout,
     )
 
     time_duration = np.arange(params.number_samples) / params.sample_rate
@@ -128,7 +129,12 @@ if __name__ == "__main__":
 
     logger.info("Begin device set up")
 
-    params = TxConfig(centre_frequency=int(2e9), gain=20)
+    params = TxConfig(
+        ChannelConfig(),
+        centre_frequency=int(2e9),
+        gain=20,
+        cw_tone_frequency=int(2e6),
+    )
 
     try:
         bladerf_cw_tone_tx(params, logger)

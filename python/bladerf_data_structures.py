@@ -4,7 +4,16 @@ from dataclasses import dataclass
 
 
 @dataclass
+class ChannelConfig:
+    number_of_buffers: int = 512
+    buffer_size: int = 4096
+    number_of_transfers: int = 32
+    stream_timeout: int = 3500
+
+
+@dataclass
 class BaseConfig:
+    sync_config: ChannelConfig
     channel: int = 0
     sample_rate: int = int(20e6)
     centre_frequency: int = int(1e9)
