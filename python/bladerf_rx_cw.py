@@ -18,7 +18,6 @@ from sigmf import SigMFFile
 from sigmf.utils import get_data_type_str, get_sigmf_iso8601_datetime_now
 
 
-#   _Array[tuple[int], signedinteger[_16Bit]]
 def bladerf_cw_tone_rx(
     params: RxConfig, logger: loguru.Logger
 ) -> tuple[np._ArrayInt_co, str]:
@@ -116,7 +115,7 @@ def bladerf_cw_tone_rx(
         num_samples_received += num
 
         logger.info(
-            f"Received {num_samples_received:.3E} out of {num_samples:.3E}"
+            f"Received {num_samples_received:.3e} out of {num_samples:.3e}"
         )
 
     rx_ch.enable = False

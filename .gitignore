@@ -18,3 +18,7 @@ uv.lock
 
 # GNU Radio files - for now
 **/*.grc
+
+# SigMF files
+.sigmf-data
+.sigmf-meta

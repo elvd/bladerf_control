@@ -77,7 +77,9 @@ def bladerf_cw_tone_tx(params: TxConfig, logger: loguru.Logger) -> None:
     samples *= 2047
 
     # samples = samples.view(np.int16)
-    samples = np.vstack((samples.real, samples.imag)).reshape((-1,), order="F")
+    samples = np.vstack((np.real(samples), np.imag(samples))).reshape(
+        (-1,), order="F"
+    )
     samples = samples.astype(np.int16)
 
     logger.info(f"Size of buffer, samples: {np.size(samples):.2e}")
