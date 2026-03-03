@@ -10,9 +10,76 @@ import sys
 
 import loguru
 import numpy as np
+import sigmf
 from bladerf import _bladerf
 from bladerf_data_structures import ChannelConfig, TxConfig
 from loguru import logger
+
+
+def bladerf_sigmf_recording_tx(
+    filename: str, params: TxConfig, logger: loguru.Logger
+) -> None:
+    try:
+        sdr = _bladerf.BladeRF()
+    except Exception as error:
+        logger.critical("Could not connect to bladeRF unit")
+        logger.critical(f"Error message returned: {error.args[0]}")
+        raise RuntimeError("Could not connect to bladeRF unit") from error
+
+    device_info = _bladerf.get_device_list()[0]
+    logger.info("Device info")
+    logger.info(f"Device string: {device_info.devstr}")
+    logger.info(f"Serial: {device_info.serial_str}")
+    logger.info(f"Backend: {device_info.backend}")
+    logger.info(f"USB bus: {device_info.usb_bus}")
+    logger.info(f"USB address: {device_info.usb_addr}")
+    logger.info(f"Instance: {device_info.instance}")
+    logger.info(f"libbladeRF version: {_bladerf.version()}")
+    logger.info(f"Firmware version: {sdr.get_fw_version()}")
+    logger.info(f"FPGA version: {sdr.get_fpga_version()}")
+
+    try:
+        tx_ch = sdr.Channel(_bladerf.CHANNEL_TX(params.channel))
+    except Exception as error:
+        logger.critical(
+            f"Invalid Tx channel value: {_bladerf.CHANNEL_TX(params.channel)}"
+        )
+        raise RuntimeError("Error configuring bladeRF unit") from error
+
+    logger.info(f"Using Tx channel: {_bladerf.CHANNEL_TX(params.channel)}")
+
+    tx_ch.frequency = params.centre_frequency
+    logger.info(f"Tx LO set to {tx_ch.frequency:.3e} Hz")
+
+    tx_ch.sample_rate = params.sample_rate
+    logger.info(f"Tx sample rate set to {tx_ch.sample_rate:.3e} samples/sec")
+
+    tx_ch.bandwidth = params.bandwidth
+    logger.info(f"Tx BW set to {tx_ch.bandwidth:.3e} Hz")
+
+    tx_ch.gain = params.gain
+    logger.info(f"Tx gain set to {tx_ch.gain} dB")
+
+    sdr.sync_config(
+        layout=_bladerf.ChannelLayout(_bladerf.CHANNEL_TX(params.channel)),
+        fmt=_bladerf.Format.SC16_Q11,
+        num_buffers=params.sync_config.number_of_buffers,
+        buffer_size=params.sync_config.buffer_size_samples,
+        num_transfers=params.sync_config.number_of_transfers,
+        stream_timeout=params.sync_config.stream_timeout,
+    )
+
+    signal_recording = sigmf.fromfile(filename)
+    signal_recording_samples = signal_recording.read_samples(autoscale=False)
+    signal_recording_samples = signal_recording_samples.astype(np.int16)
+
+    samples = signal_recording_samples.tobytes()
+
+    tx_ch.enable = True
+    logger.info(f"{len(signal_recording_samples)}")
+    sdr.sync_tx(samples, len(signal_recording_samples) // 2)
+
+    tx_ch.enable = False
 
 
 def bladerf_cw_tone_tx(params: TxConfig, logger: loguru.Logger) -> None:
@@ -133,13 +200,15 @@ if __name__ == "__main__":
 
     params = TxConfig(
         ChannelConfig(),
-        centre_frequency=int(2e9),
-        gain=20,
-        cw_tone_frequency=int(2e6),
+        centre_frequency=int(1e9),
+        gain=40,
+        cw_tone_frequency=int(10e6),
     )
 
     try:
-        bladerf_cw_tone_tx(params, logger)
+        bladerf_sigmf_recording_tx(
+            "SAC-SimpleRx-2026-02-20T15:56:31.892094Z-2a6b", params, logger
+        )
     except RuntimeError:
         logger.info(
             "Please check the BladeRF is connected to this PC and running"
